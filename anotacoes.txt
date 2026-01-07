@@ -1,0 +1,562 @@
+Principais Operadores
+
+BashOperator: executa um comando de shell ou script.
+PythonOperator: executa uma função Python.
+DummyOperator: não faz nada e é útil para fins de organização.
+EmailOperator: envia um e-mail.
+SQLOperator: executa uma consulta SQL.
+FileSensor: aguarda até que um arquivo seja criado ou modificado.
+HttpSensor: aguarda até que uma solicitação HTTP seja bem sucedida.
+TriggerDagRunOperator: executa uma DAG de outra DAG.
+      Para executar uma outra DAG, exemplo: dag1 executa a dag2. 
+        dag2 não pode estas pausada, senão ficará aguardando em fila.
+
+
+Trigger Rule
+all_sucess: a tarefa é executada se todas as anteriores forem concluídsas com sucesso
+all_failed: a tarefa é executada se todas as anteriores falharem
+all_done: a tarefa é executa se todas as anteriores forem concluídas, independente do status
+one_success: a tarefa é executa se pelo menos uma das tarefas anteriores foi concluída com sucesso
+one_failed: a tarefa é executa se pelo menos umas das terefas anteriores falhou.
+none_failed: a tarefa é executa se nenhuma das tarefas anteriores falhou.
+none_skipped: a tarefa é executa se nenhuma das tarefas anteriores foi pulada.
+dummy: a tarefa é sempre executada, independentemente do status das tarefas anteriores.
+
+
+Parâmetros de uma dag1
+dag_id: um identificador único para a DAG na cluster
+description: descrição da DAG
+schedule_interval: o intervalo de tempo no qual a DAG será executada (Expressão cron).
+        > Usar cron ou alias: 
+          None 
+          @once 
+          @yearly 
+          @annually 
+          @monthly 
+          @weekly 
+          @daily 
+          @hourly
+start_date: a data e hora em que a DAG deve começar a ser executada.
+end_date: a data e hora em que a DAG não deve mais ser executada.
+catchup: determina se a DAG deve executar todas as tarefas que deveriam ter sido executadas desde a data de start_date até o momento atual. Padrão é true.
+default_view: visualização padrão da interface do Airflow para esta DAG. Por exemplo, "graph"
+max_active_runs: máximo de execuções ativas da DAG permitidas. 
+concurrency: máximo de tarefas que podem ser executadas simultaneamente.
+tags: uma lista de tags para marcar a DAG e suas execuções
+default_args: dicionário de argumentos padrão que serão aplicados a todas as tarefas da DAG, a menos que sejam especificamente substituídos.
+depends_on_past: só inicia se no passado executou com sucesso. Padrão true.
+email: endereço de email para failure ou retry
+email_on_failure: True/False
+email_on_retry: True/False
+retries: número padrão de novas tentativas
+retry_delay: timedelta (minutes=5)
+
+        Alguns destes parâmetros não podem ser definidos diretamente na DAG, mas em default_args.
+        Parâmetros podem ser sobreescritos diretamente na task
+
+
+Catchup e Backfill
+- Roda intervalos não executados se definido coo verdadeiro
+- Da start_date até agora
+- Se definido como false não acontece
+- Backfill permite executar intervalos anteriores (airflow backfill). Executa de forma retroativa via linha de comando ou UI
+
+
+xcom: Troca de dados entre tasks
+
+- ti (task instance) é um objeto que representa a instância da tarefa sendo executada
+- xcom_push() é usada para definir o valor
+- xcom_pull() é usada para recuperar o valor
+
+
+Enviar Email
+
+- Notificações Automáticas de Sistema (error, retry)
+- Notificação por task: erro, fim da execução etc. Configuradas na task
+
+    Notificação de Sistema: 
+      Automático, definição na DAG:
+        > email_on_failure=True
+        > email_on_retry=False
+          retries=1: define o número de vezes que uma tarefa será reprocessaa antes de falhar definitivamente.
+          retry_delay: timedelta(minutes=5): define o intervalo de tempo entre os reprocessamentos.
+    Operador
+      EmailOperator
+        > Envia um email dentro do fluxo do airflow, como uma task
+
+- O que é preciso para o envio de e-mails funcionar no airflow?
+  > Servidor de SMTP
+  > Configurar o Airflow
+
+- SMTP
+  > Pode usar qualquer SMTP
+  > No tutorial mostra como configurar o gmail
+
+
+
+
+
+VARIÁVEIS DO Airflow
+
+- Permitem armazenar e compartilhar informações entre DAGs
+  > Credenciais de API
+  > URLs
+  > Chaves de Autenticação
+- Podem ser criadas na UI ou na CLI
+
+
+Variáveis X XCom
+
+- Variáveis:
+  > Informações estáticas e globais
+  > Usadas em todo o pipeline
+
+- XCom 
+  > Informações dinâmicas
+  > Entre as tarefas
+
+
+
+POOLS
+
+São usados para gerenciar a concorrência e a alocação de recursos.
+
+Exemplo:
+  - Várias tarefas que precisam acessar um banco de dados
+  - Limites de conexões e recursos
+  - Cria se um pool para limitar e gerenciar o uso destas conexões
+
+  Exemplo de teste:
+  - 1º vamos criar uma DAG com 4 tasks paralelas
+    > Vamos rodar e ver como são executadas
+  - Vamos criar 1 pool com 1 slot (teremos só 1 worker disponível e só poderá executar 1 task por vez)
+    > Slot = worker disponível para o recurso
+    > Dessa forma, o pool vai gerenciar o uso do worker
+  - Vamos definir priority weight para as tasks
+
+
+
+  BRANCHES (BranchPythonOperator)
+    Muito comum um pipeline precisar seguir em direções diferentes de acordo com resultado de eventos:
+    - Caminhos para dados válidos e inválidos
+    - Diferentes testes de qualidade
+    - Encaminhar diferentes e-mails conforme o resultado da análise
+    - etc
+    A branche permite que o pipeline tome decisões baseadas em uma lógica definida no código.
+
+
+MAIS PythonOperator
+
+Permite adicionar qualquer funcionalidade Python ao Airflow
+  - Limpeza e tratamento de dados
+  - Transformação, resumos
+  - Extração de fontes diversas
+  - Machine Learning
+Pode-se usar qualquer módulo Python.
+
+  Exemplo que será feito:
+    - Adicionar um path para uma pasta dados em docker-compose.yaml
+    - Foi adicionado o arquivo Churn.csv nesta pasta
+      > Este arquivo está junto com o material do curso. Olhe na pasta desta seção.
+    - Criar uma DAG que:
+      > Lê este arquivo.
+      > Faz diversos tratamentos:
+        * Preeche NAs com mediana ou com mostra
+        * Exclui duplicados
+      > Salva como novo arquivo
+
+IMPORTANTE: 
+    Para instalar dependências no airflow - via terminal:
+        # Vai para o usuário airflow com o comando:
+        docker exec -it --user airflow airflow-airflow-webserver-1 bash 
+
+        # instale a dependência
+        pip install openpyxl
+
+        # volte para o root
+        exit    
+
+
+DATASETS
+
+Agendamento por tempo: exemplo - diário
+Datasets: agendamento baseado em uma tarefa que atualiza um dataset 
+Dag Producer: atualiza dados
+Dag consumer: schedule=Dataset
+
+  -> O agedamento pode ocorrer quando um dataset é atualizando, podendo ser um banco de dados ou um arquivo físico.
+     Ver as DAGs producer.py e consumer.py
+
+
+
+SENSORS
+ - Aguardam um evento ou disponibilidade de um serviço
+ - Não executa nenhuma ação adicional
+   > Por exemplo: verifica arquivo e outra task importa
+
+ - Principais:
+   1. FileSensor: aguarda a existência ou a ausência de um arquivo em um caminho específico.
+   2. HttpSensor: aguarda a disponibilidade de uma URL.
+   3. S3KeySensor: aguarda a existência ou a ausência de uma chave em um bucket S3.
+   4. SqlSensor: aguarda a execução de uma consulta SQL em um banco de dados.
+
+ - Parâmetros:
+   1. poke_interval: define o intervalo de tempo entre as verificações do sensor.
+   2. timeout: define o tempo máximo que o sensor pode esperar antes de atingir o tempo limite.
+   3. soft_fail: especifica se o sensor deve falhar silenciosamente (retornando "False") ou gerar uma exceção quando atinge o tempo limite.
+   4. mode: especifica o modo de operação do sensor ("reschedule" para agendar novamente a tarefa ou "poke" para continuar verificando até que a condição seja atendida)
+   5. poke_on_failure: especifica se o sensor deve continuar verificando quando ocorre uma falha na verificação anteior.
+
+   Exemplo: HttpSensor: será verificada a disponibilidade de uma API (https://api.publicapis.org/entries)
+                        esta api é uma lista de APIs publicapis
+                        um PythonOperator vai consultar a API, caso disponível
+                        precisamos cadastrar a API como uma conexão.
+
+                        OBS: A API informada na aula não está mais disponível.
+                             Porém existem várias outras APIs publicas e gratuitas, que não requerem autenticação, que você pode utilizar na aula prática.
+                             Uma boa referência para você escolher uma é neste endereço: https://blog.casadodesenvolvedor.com.br/apis-publicas-e-gratuitas-para-seus-projetos/
+
+
+
+PROVIDERS
+
+- Modulos Python que estendem a funcionalidade do Airflow
+- Vários tipos: operators, sensors, hooks etc.
+- Muitos já fazem parte do Airflow
+- Podem ser instalados com pip
+Exemplos:
+  1 - apache-airflow-providers-postgres
+  2 - apache-airflow-providers-amazon
+  3 - apache-airflow-providers-google
+
+  No exemplo foi usado o apache-airflow-providers-postgres 
+  que já faz parte do Container utilizado.
+  - O airflow utiliza o postgres para metadados (dependendo da configuração)
+
+  Exemplo:
+  - Cria uma tabela -> Inserir um Dado -> Consultar a Tabela -> Imprimir o Resultado
+  - ver dag bancodedados.py
+
+HOOKS
+
+- Componente para interação com sistemas externos, como Banco de dados
+- Componentes de Baixo Nível:
+  > Mais complexidade
+  > Mais flexibilidade, controle granular
+-------->>>>> Hooks são classes e não tasks! <<<<--------
+
+- PostgresOperator: Encapsula o PostgresHook com pouquíssimo código!
+
+Ele é uma classe python que pode-se instanciar para executar tarefas diversas
+
+Exemplo (Mesmo do providers agora com hooks):
+  - Cria uma tabela -> Inserir um Dado -> Consultar a Tabela -> Imprimir o Resultado
+
+
+Usando linha de comando do airflow
+
+- comando: docker ps
+- resultado: lista os container do airflow. Exemplo:
+--------------------------------------------------------------------------------------------------------------------
+CONTAINER ID   IMAGE                  COMMAND                  CREATED        STATUS                PORTS           
+--------------------------------------------------------------------------------------------------------------------                              NAMES
+9f8131345c3a   apache/airflow:2.5.1   "/usr/bin/dumb-init …"   3 months ago   Up 4 days (healthy)   8080/tcp                                      airflow-airflow-scheduler-1
+114d746fce9e   apache/airflow:2.5.1   "/usr/bin/dumb-init …"   3 months ago   Up 4 days (healthy)   0.0.0.0:8080->8080/tcp, [::]:8080->8080/tcp   airflow-airflow-webserver-1
+8cbdc7f30bb9   apache/airflow:2.5.1   "/usr/bin/dumb-init …"   3 months ago   Up 4 days (healthy)   8080/tcp                                      airflow-airflow-worker-1
+4bcee2b85066   apache/airflow:2.5.1   "/usr/bin/dumb-init …"   3 months ago   Up 4 days (healthy)   8080/tcp                                      airflow-airflow-triggerer-1
+a3c8ecc3af0d   postgres:13            "docker-entrypoint.s…"   3 months ago   Up 4 days (healthy)   5432/tcp                                      airflow-postgres-1
+cb8bfa8f818d   redis:latest           "docker-entrypoint.s…"   3 months ago   Up 4 days (healthy)   6379/tcp                                  
+    airflow-redis-1
+--------------------------------------------------------------------------------------------------------------------    
+Vamos precisar do id do container webserver 114d746fce9e
+
+comando  : docker exec -it 114d746fce9e bash
+resultado: entramos no linux onde o airflow está instalado. Nele pode interagir com o airflow usando linha de comando
+prompt: airflow@114d746fce9e:/opt/airflow$ 
+   
+     comando  : airflow dags list
+     resultado: lista as Dags
+
+     comando  : airflow dags report
+     resultado: lista as Dags com o nome do arquivo, duração, nº de dags e tasks por arquivo
+
+     comando  : airflow dags list-jobs
+     resultado: lista de ...
+
+     comando  : airflow dags next-execution branchtest
+     resultado: mostra quando será a próxima execução da dag
+
+     comando  : airflow dags next-execution branchtest
+     resultado: mostra quando será a próxima execução da dag
+
+     comando  : airflow dags list-runs -d consumer
+     resultado: lista as execuções da dag consumer
+
+     comando  : airflow dags unpause consumer
+     resultado: ativa a dag consumer (quando estava inativa)
+
+     comando  : airflow dags trigger consumer
+     resultado: executa a dag consumer
+
+     comando  : airflow tasks list consumer
+     resultado: lista tasks da dag consumer
+
+     comando  : airflow tasks test dag_group tsk1 2026-01-01
+     resultado: testa a task tsk1
+
+     comando  : airflow config list
+     resultado: exibe a lista de configurações do airflow que estão no docker
+
+     comando  : airflow pools list
+     resultado: lista os pools configurados no airflow
+
+     comando  : airflow connections list
+     resultado: lista as conexões configuradas no airflow
+
+     comando  : airflow variables list
+     resultado: lista as variáveis configuradas no airflow
+
+     comando  : airflow 
+     resultado: lista os principais comandos
+
+     comando  : airflow cheat-sheet
+     resultado: exemplos dos principais comandos
+          ------------------------------------------------------------------------
+          Miscellaneous commands
+          airflow cheat-sheet                       | Display cheat sheet
+          airflow dag-processor                     | Start a standalone Dag Processor instance
+          airflow info                              | Show information about current Airflow and environment
+          airflow kerberos                          | Start a kerberos ticket renewer
+          airflow plugins                           | Dump information about loaded plugins
+          airflow rotate-fernet-key                 | Rotate encrypted connection credentials and variables
+          airflow scheduler                         | Start a scheduler instance
+          airflow standalone                        | Run an all-in-one copy of Airflow
+          airflow sync-perm                         | Update permissions for existing roles and optionally DAGs
+          airflow triggerer                         | Start a triggerer instance
+          airflow version                           | Show the version
+          airflow webserver                         | Start a Airflow webserver instance
+
+          Celery components
+          airflow celery flower                     | Start a Celery Flower
+          airflow celery stop                       | Stop the Celery worker gracefully
+          airflow celery worker                     | Start a Celery worker node
+
+          View configuration
+          airflow config get-value                  | Print the value of the configuration
+          airflow config list                       | List options for the configuration
+
+          Manage connections
+          airflow connections add                   | Add a connection
+          airflow connections delete                | Delete a connection
+          airflow connections export                | Export all connections
+          airflow connections get                   | Get a connection
+          airflow connections import                | Import connections from a file
+          airflow connections list                  | List connections
+
+          Manage DAGs
+          airflow dags backfill                     | Run subsections of a DAG for a specified date range
+          airflow dags delete                       | Delete all DB records related to the specified DAG
+          airflow dags list                         | List all the DAGs
+          airflow dags list-import-errors           | List all the DAGs that have import errors
+          airflow dags list-jobs                    | List the jobs
+          airflow dags list-runs                    | List DAG runs given a DAG id
+          airflow dags next-execution               | Get the next execution datetimes of a DAG
+          airflow dags pause                        | Pause a DAG
+          airflow dags report                       | Show DagBag loading report
+          airflow dags reserialize                  | Reserialize all DAGs by parsing the DagBag files
+          airflow dags show                         | Displays DAG's tasks with their dependencies
+          airflow dags show-dependencies            | Displays DAGs with their dependencies
+          airflow dags state                        | Get the status of a dag run
+          airflow dags test                         | Execute one single DagRun
+          airflow dags trigger                      | Trigger a DAG run
+          airflow dags unpause                      | Resume a paused DAG
+
+          Database operations
+          airflow db check                          | Check if the database can be reached
+          airflow db check-migrations               | Check if migration have finished
+          airflow db clean                          | Purge old records in metastore tables
+          airflow db downgrade                      | Downgrade the schema of the metadata database.
+          airflow db init                           | Initialize the metadata database
+          airflow db reset                          | Burn down and rebuild the metadata database
+          airflow db shell                          | Runs a shell to access the database
+          airflow db upgrade                        | Upgrade the metadata database to latest version
+
+          Manage jobs
+          airflow jobs check                        | Checks if job(s) are still alive
+
+          Tools to help run the KubernetesExecutor
+          airflow kubernetes cleanup-pods           | Clean up Kubernetes pods (created by KubernetesExecutor/KubernetesPodOperator) in evicted/failed/succeeded/pending states
+          airflow kubernetes generate-dag-yaml      | Generate YAML files for all tasks in DAG. Useful for debugging tasks without launching into a cluster
+
+          Manage pools
+          airflow pools delete                      | Delete pool
+          airflow pools export                      | Export all pools
+          airflow pools get                         | Get pool size
+          airflow pools import                      | Import pools
+          airflow pools list                        | List pools
+          airflow pools set                         | Configure pool
+
+          Display providers
+          airflow providers auth                    | Get information about API auth backends provided
+          airflow providers behaviours              | Get information about registered connection types with custom behaviours
+          airflow providers get                     | Get detailed information about a provider
+          airflow providers hooks                   | List registered provider hooks
+          airflow providers links                   | List extra links registered by the providers
+          airflow providers list                    | List installed providers
+          airflow providers logging                 | Get information about task logging handlers provided
+          airflow providers secrets                 | Get information about secrets backends provided
+          airflow providers widgets                 | Get information about registered connection form widgets
+
+          Manage roles
+          airflow roles add-perms                   | Add roles permissions
+          airflow roles create                      | Create role
+          airflow roles del-perms                   | Delete roles permissions
+          airflow roles delete                      | Delete role
+          airflow roles export                      | Export roles (without permissions) from db to JSON file
+          airflow roles import                      | Import roles (without permissions) from JSON file to db
+          airflow roles list                        | List roles
+
+          Manage tasks
+          airflow tasks clear                       | Clear a set of task instance, as if they never ran
+          airflow tasks failed-deps                 | Returns the unmet dependencies for a task instance
+          airflow tasks list                        | List the tasks within a DAG
+          airflow tasks render                      | Render a task instance's template(s)
+          airflow tasks run                         | Run a single task instance
+          airflow tasks state                       | Get the status of a task instance
+          airflow tasks states-for-dag-run          | Get the status of all task instances in a dag run
+          airflow tasks test                        | Test a task instance
+
+          Manage users
+          airflow users add-role                    | Add role to a user
+          airflow users create                      | Create a user
+          airflow users delete                      | Delete a user
+          airflow users export                      | Export all users
+          airflow users import                      | Import users
+          airflow users list                        | List users
+          airflow users remove-role                 | Remove role from a user
+
+          Manage variables
+          airflow variables delete                  | Delete variable
+          airflow variables export                  | Export all variables
+          airflow variables get                     | Get variable
+          airflow variables import                  | Import variables
+          airflow variables list                    | List variables
+          airflow variables set                     | Set variable     
+          ------------------------------------------------------------------------
+
+      
+
+EXECUTER E CONFIGURAÇÕES
+
+
+CONFIGURAÇÕES
+   - Arquivo airflow.cfg
+   - docker-compose.yaml: "sobrescreve" airflow.cfg
+
+   As configurações do airflow se dividem em seções:
+  - [core] - principais
+  - [webserver] - serviços que disponibiliza a interface gráfica
+  - [scheduler] - agendamento
+
+  Pode ser alteradas:
+    
+    > no docker-compose.yaml
+      Usar variável de ambiente:
+      - AIRFLOW__
+      - [SECAO]__
+      - [CONFGURAÇÃO]
+
+      Exemplo:
+
+      no airflow.cfg é assim:
+        [smtp]
+        smtp_host = localhost
+
+      no docker-compose.yaml ficaria assim:
+        AIRFLOW__SMTP__SMTP_HOST:
+      E é necessário reiniciar o container.
+
+
+      CORE:
+      dags_folder = /path/to/your/dags/dags_folder
+      base_log_folder = /path/to/your/log/dags_folder
+      executor = SequentialExecutor
+      sql_alchemy_conn = postgresql+psycopg2://user/passowrd@localhost/db_name
+      parallelism = 32
+      dag_concurrency = 16
+
+
+      WEBSERVER:
+      web_server_host = 0.0.0.0
+      web_server_port = 8080
+      authenticate = False
+
+
+      SCHEDULER:
+      scheduler_hearthbeat_sec = 5
+      job_heartbeat_sec = 5
+      num_runs = -1  #número de vezes que o schedule vai executar antes e parar. -1 executa indefinidamente
+
+
+EXECUTORS:
+
+  É um dos componentes principais do airlfow, ele executa as tasks.
+
+  - Alocação de recursos: como e onde executar tarefas
+  - Gerencia Paralelismo
+  - Gerencia dependências
+  - Tratamento de falhas
+  - Monitora
+  - Loga
+
+  Tipos:
+  - CeleryExecutor: Execução distribuída em cluster (Celery é uma lib de processamento distribuída que necessita de um broker de mensagem, no instalado local usamos o redis )
+  - SequencialExecutor: Permite apenas execução sequencia
+  - LocalExecuter: Permite execução em paralelo, mas somente local
+  - KubernetesExecutor: Executa em ambientes Kubernetes
+
+
+CRIANDO PLUGINS
+
+PLUGINS
+  - Estende a funcionalidade do airflow
+  - Pode encapsular código para reutilização
+  - Classe Python
+  - Construtor que herda BaseOperator
+  - Método Execute
+
+  Por padrão o airflow tem uma pasta onde são colocados os plugins
+  /opt/airflow/plugins
+
+  Atividade que será desenvolvida com uso de plugin:
+     
+     > BigDataOperator
+       - Transforma arquivos csv em parquet
+       - Também pode transformar em JSON
+       - Vamos utilizar para teste o arquivo Churn.csv (pasta data)
+     > Criar plugin
+     > Reiniciar Airflow (O airflow é lazy para encontrar plugins, por isso precisa ser reiniciado)
+     - Criar DAG para teste
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+     
+
